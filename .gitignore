@@ -1,0 +1,6 @@
+*.jpg
+*.avi
+*.pyc
+__pycache__
+.project
+.pydevproject
