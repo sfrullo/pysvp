@@ -10,7 +10,6 @@ Gst.init(None)
 
 class Player:
     
-
     def __init__(self, xid=None, name='Player'):
         self.__xid = xid
         self.__media = None
@@ -20,8 +19,7 @@ class Player:
         
         self.bus = self.pipeline.get_bus()
         self.bus.add_signal_watch()
-        self.bus.connect('message::eos', self.on_eos)
-        self.bus.connect('message::error', self.on_error)
+        self.bus.connect('message', self.on_message)
         self.bus.enable_sync_message_emission()
         self.bus.connect('sync-message::element', self.on_sync_message)
 
@@ -41,20 +39,16 @@ class Player:
         rc, pos = self.pipeline.query_position(Gst.Format.TIME)
         newpos = pos + (10 * 10**8)
         self.pipeline.seek_simple(Gst.Format.TIME, Gst.SeekFlags.FLUSH, newpos)
+
     
-    
-    def on_eos(self, bus, msg):
-        print(self.name, 'on_eos(): seeking to start of video')
-        self.pipeline_vid1.seek_simple(
-            Gst.Format.TIME,        
-            Gst.SeekFlags.FLUSH | Gst.SeekFlags.KEY_UNIT,
-            0
-        )
-    
-    
-    def on_error(self, bus, msg):
-        print(self.name, 'on_error():', msg.parse_error())
-    
+    def on_message(self, bus, msg):
+        t = msg.type
+        if t == Gst.MessageType.EOS:
+            print(self.name, 'on_eos(): seeking to start of video')
+            self.stop()
+        elif t == Gst.MessageType.ERROR:
+            self.stop()
+            print(self.name, 'on_error():', msg.parse_error())
     
     def on_sync_message(self, bus, msg):
         if msg.get_structure().get_name() == 'prepare-window-handle':
