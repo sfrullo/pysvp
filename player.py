@@ -15,17 +15,35 @@ class Player:
         self.__media = None
         self.name = name
         
-        self.pipeline = Gst.Pipeline()
+        self.pipeline = Gst.Pipeline('pipeline')
         
+        self.source = Gst.ElementFactory.make('filesrc', 'file-source')   
+            
+        self.decodebin = Gst.ElementFactory.make('decodebin', 'decodebin')
+        self.decodebin.connect('pad-added', self.on_pad_added)
+        
+        self.videoconvert = Gst.ElementFactory.make('videoconvert', 'videoconvert')
+        self.videosink = Gst.ElementFactory.make('autovideosink', 'video-output')
+        
+        # ADD TO PIPE
+        for e in [self.source, self.decodebin, self.videoconvert, self.videosink]:
+            self.pipeline.add(e)
+
+        # LINKING TOGHETER
+        self.source.link(self.decodebin)
+        # decodebin link to videoconvert through on_pad_added() callback
+        self.videoconvert.link(self.videosink)
+
         self.bus = self.pipeline.get_bus()
         self.bus.add_signal_watch()
         self.bus.connect('message', self.on_message)
         self.bus.enable_sync_message_emission()
         self.bus.connect('sync-message::element', self.on_sync_message)
-
     
+    # CONTROL FUNCTIONS
     def play(self):
         self.pipeline.set_state(Gst.State.PLAYING)
+        print(self.pipeline.get_state(10)[1])
         
     def stop(self):
         self.pipeline.set_state(Gst.State.NULL)
@@ -40,7 +58,7 @@ class Player:
         newpos = pos + (10 * 10**8)
         self.pipeline.seek_simple(Gst.Format.TIME, Gst.SeekFlags.FLUSH, newpos)
 
-    
+    # CALLBACK FUNCTIONS
     def on_message(self, bus, msg):
         t = msg.type
         if t == Gst.MessageType.EOS:
@@ -53,9 +71,18 @@ class Player:
     def on_sync_message(self, bus, msg):
         if msg.get_structure().get_name() == 'prepare-window-handle':
             print('prepare-window-handle')
-            msg.src.set_window_handle(self.__xid)
-    
-    
+            imagesink = msg.src
+            imagesink.set_property('force-aspect-ratio', True)
+            imagesink.set_window_handle(self.get_xid())
+        
+    def on_pad_added(self, decodebin, pad):                        
+        sink = self.videoconvert.get_compatible_pad(pad)
+        if sink:
+            pad.link(sink)
+        else:
+            pass
+         
+    # GETTER/SETTER DEFINITION 
     def get_xid(self):
         return self.__xid
 
@@ -75,9 +102,8 @@ class Player:
     def set_media(self, value):
         print('Set new Media: {}'.format(value))
         self.__media = value
-        self.playbin = Gst.ElementFactory.make('playbin', None)
-        self.playbin.set_property('uri', self.__media)
-        self.pipeline.add(self.playbin)
+        self.source.set_property('location', value)
+
 
     def del_media(self):
         del self.__media

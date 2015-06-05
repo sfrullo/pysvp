@@ -5,8 +5,8 @@ from pprint import pprint
 
 from player import *
      
-uri1 = 'file://' + path.join(path.dirname(path.abspath(__file__)), 'v1.avi')
-uri2 = 'file://' + path.join(path.dirname(path.abspath(__file__)), 'v2.avi')
+uri1 = path.join(path.dirname(path.abspath(__file__)), 'v3.avi')
+uri2 = path.join(path.dirname(path.abspath(__file__)), 'v2.avi')
    
 class App(Tk.Frame):
     
