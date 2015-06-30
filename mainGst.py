@@ -5,8 +5,8 @@ from pprint import pprint
 
 from player import *
      
-uri1 = path.join(path.dirname(path.abspath(__file__)), 'v3.avi')
-uri2 = path.join(path.dirname(path.abspath(__file__)), 'v2.avi')
+media = {1:path.join(path.dirname(path.abspath(__file__)), 'v1.avi'),
+         2:path.join(path.dirname(path.abspath(__file__)), 'v2.avi')}
    
 class App(Tk.Frame):
     
@@ -15,10 +15,19 @@ class App(Tk.Frame):
         self.config(bd=30)
         self.grid()
         
+        self.videoSelection = Tk.IntVar()
+        self.videoSelection.set(1)
+        
         self.createWidgets()
         self.init_player()
     
      
+    def updateVideo(self, index):
+        self.player2.stop()
+        self.player2.media = media[index]
+        
+        self.player2.play()
+    
     def createWidgets(self):
         
         self.video = Tk.Frame(self, bg='white')
@@ -41,18 +50,30 @@ class App(Tk.Frame):
         self.revbutton.grid(column=0, row=1)
         self.ffwdbutton = Tk.Button(self.buttoncontainer, text='FFWD', command=self.on_ffwd)
         self.ffwdbutton.grid(column = 1, row=1)
+        self.debug = Tk.Button(self.buttoncontainer, text='debug', command=self.on_debug)
+        self.debug.grid(column = 2, row=0)
         
-            
+#         self.videoSelectorContainer = Tk.LabelFrame()
+#         for index in [1,2]:
+#             self.radio = Tk.Radiobutton(self.videoSelectorContainer, 
+#                                         text=str(index),
+#                                         value=index, 
+#                                         variable=self.videoSelection, 
+#                                         command=lambda:self.updateVideo(self.videoSelection.get()))
+#             self.radio.grid(column=0, row=index)
+#         self.videoSelectorContainer.grid(column=1,row=0)
+    
+    
     def init_player(self):
                 
-        self.player1 = Player(name='Player1')
-        self.player2 = Player(name ='Player2')
+        self.player1 = SimplePlayer(name='Player1')
+        self.player2 = SimplePlayer(name ='Player2')
         
-        self.player1.set_xid(self.video.winfo_id())
-        self.player2.set_xid(self.video2.winfo_id())
+        self.player1.xid = self.video.winfo_id()
+        self.player2.xid = self.video2.winfo_id()
 
-        self.player1.set_media(uri1)
-        self.player2.set_media(uri2)
+        self.player1.setMedia(media[1])
+        self.player2.setMedia(media[2])
         
         self.players = [self.player1, self.player2]
 
@@ -72,6 +93,10 @@ class App(Tk.Frame):
     def on_ffwd(self):
         for p in self.players:
             p.ffwd()
+            
+    def on_debug(self):
+        for p in self.players:
+            p.debug()
 
 
 
