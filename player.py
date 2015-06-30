@@ -9,7 +9,7 @@ from os.path import sep
 
 import gi
 gi.require_version('Gst', '1.0')
-from gi.repository import GObject, Gst, GstVideo #@UnresolvedImport
+from gi.repository import GObject, Gst, GstVideo  # @UnresolvedImport
 GObject.threads_init()
 Gst.init(None)
 
@@ -29,28 +29,37 @@ class Media:
             padcaps = pad.query_caps(None)
             structure = padcaps.to_string()
             if structure.startswith('video'):
-                if hasattr(self, 'videoghostpad'):
-                    self.ghostsrc = Gst.GhostPad.new('ghostvideosrc::' + self.filename, pad)
-                    self.ghostsrc.set_active(True)
-                    self.decodebin.add_pad(self.ghostsrc)
-                    self.ghostsrc.link(self.videoconvert.get_compatible_pad(self.ghostsrc))
-                else:
-                    sinkpad = self.videoconvert.get_compatible_pad(pad)
+                videofakesink = self.bin.get_by_name('fakevideosink::' + self.filename)
+                if videofakesink:
+                    # è presente un videofakesink, la traccia video non deve essere mostrata
+                    # quindi colleghiamo il pad al fakesink
+                    sinkpad = videofakesink.get_compatible_pad(pad)
                     pad.link(sinkpad)
+                else:
+                    self.videoghostsrc = Gst.GhostPad.new('ghostpadvideosrc::' + self.filename, pad)
+                    self.videoghostsrc.set_active(True)
+                    self.bin.add_pad(self.videoghostsrc)
+                    self.videoghostsrc.link(self.videoconvert)
             else:
-                if hasattr(self, 'audioghostpad'):
-                    pad.link(self.audioghostpad)
-                else:
-                    sinkpad = self.audioconvert.get_compatible_pad(pad)
+                audiofakesink = self.bin.get_by_name('fakeaudiosink::' + self.filename)
+                if audiofakesink:
+                    # è presente un audiofakesink, la traccia audio non deve essere mostrata
+                    # quindi colleghiamo il pad al fakesink
+                    sinkpad = audiofakesink.get_compatible_pad(pad)
                     pad.link(sinkpad)
-                
-            
+                else:
+                    self.audioghostsrc = Gst.GhostPad.new('ghostpadaudiosrc::' + self.filename, pad)
+                    self.audioghostsrc.set_active(True)
+                    self.bin.add_pad(self.audioghostsrc)
+                    self.audioghostsrc.link(self.audioconvert)
+                    
+                    
     def __init__(self, sourcefile, audioconvert, videoconvert, n=0):
         self.id = n
         self.location = sourcefile
         self.filename = sourcefile.split(sep)[-1]
         
-        self.bin = Gst.Bin.new('bin::'+self.filename)
+        self.bin = Gst.Bin.new('bin::' + self.filename)
         self.decodebin = Gst.ElementFactory.make('uridecodebin', 'uridecodebin::' + self.filename)
         self.decodebin.connect('pad-added', self.on_pad_added)
         self.decodebin.set_property('uri', 'file:///' + sourcefile)
@@ -62,20 +71,18 @@ class Media:
             self.bin.add(self.audioconvert) 
         else:
             self.audioconvert = audioconvert
-            sinkpad = self.audioconvert.get_static_pad('sink')
-            self.audioghostpad = Gst.GhostPad.new('ghostpadaudio::'+self.filename, sinkpad)
-            self.audioghostpad.set_active(True)
-            self.bin.add_pad(self.audioghostpad)
+#             self.audioghostpad = Gst.GhostPad.new('ghostpadaudio::' + self.filename, self.audioconvert)
+#             self.audioghostpad.set_active(True)
+#             self.bin.add_pad(self.audioghostpad)
         
         if not videoconvert:
             self.videoconvert = Gst.ElementFactory.make('fakesink', 'fakevideosink::' + self.filename)
             self.bin.add(self.videoconvert)
         else:
             self.videoconvert = videoconvert
-            sinkpad = self.videoconvert.get_static_pad('sink')
-            self.videoghostpad = Gst.GhostPad.new('ghostpadvideo::'+self.filename, sinkpad)
-            self.videoghostpad.set_active(True)
-            self.bin.add_pad(self.videoghostpad)
+#             self.videoghostpad = Gst.GhostPad.new('ghostpadvideo::' + self.filename, self.videoconvert)
+#             self.videoghostpad.set_active(True)
+#             self.bin.add_pad(self.videoghostpad)
 
         
         
@@ -89,13 +96,13 @@ class SimplePlayer:
     
     def on_debug_activate(self, name):
         print('do debug image')
-        dotfile = "/tmp/"+name+".dot"
-        pdffile = "/tmp/"+name+".pdf"
+        dotfile = "/tmp/" + name + ".dot"
+        pdffile = "/tmp/" + name + ".pdf"
         if os.access(dotfile, os.F_OK):
             os.remove(dotfile)
         if os.access(pdffile, os.F_OK):
             os.remove(pdffile)
-        Gst.debug_bin_to_dot_file(self.pipeline,Gst.DebugGraphDetails.ALL, name)
+        Gst.debug_bin_to_dot_file(self.pipeline, Gst.DebugGraphDetails.ALL, name)
         try:
             os.system("dot -Tpdf -o " + pdffile + " " + dotfile)
         except os.error:
@@ -116,6 +123,9 @@ class SimplePlayer:
         self.pipeline = Gst.Pipeline('pipeline::' + self.name)
         if not self.pipeline: raise self.LoadingComponentException('pipeline')
         
+        self.bin = Gst.Bin('bin::' + self.name)
+        if not self.bin: raise self.LoadingComponentException('bin')
+        
         # load video and audio component
         self.videoconvert = Gst.ElementFactory.make('videoconvert', 'videoconvert::' + self.name)
         self.videosink = Gst.ElementFactory.make('autovideosink', 'video-output::' + self.name)
@@ -126,14 +136,27 @@ class SimplePlayer:
         self.audiosink = Gst.ElementFactory.make('autoaudiosink', 'audio-output::' + self.name)
         if not (self.audioconvert and self.audiosink):
             raise self.LoadingComponentException('audio')
-    
-        # add component to pipeline
+        
+        
+        # add ghostpad to bin
+        self.videoghostpad = Gst.GhostPad.new('videoghostpad::' + self.name, self.videoconvert.get_static_pad('sink'))
+        self.bin.add_pad(self.videoghostpad)
+        self.videoghostpad.set_active(True)
+        
+        self.audioghostpad = Gst.GhostPad.new('audioghostpad::' + self.name, self.audioconvert.get_static_pad('sink'))
+        self.bin.add_pad(self.audioghostpad)
+        self.audioghostpad.set_target()
+        
+        
+        # add component to bin
         for e in [self.videoconvert, self.videosink, self.audioconvert, self.audiosink]:
-            self.pipeline.add(e)
-            
-        self.videoconvert.link(self.videosink)
-        self.audioconvert.link(self.audiosink)
+            self.bin.add(e)
+        # ..and bin to pipeline
+        self.pipeline.add(self.bin)
 
+        self.audioconvert.link(self.audiosink)
+        self.videoconvert.link(self.videosink)
+        
         self.bus = self.pipeline.get_bus()
         self.bus.add_signal_watch()
         self.bus.connect('message', self.on_message)
@@ -149,12 +172,12 @@ class SimplePlayer:
         
     def rew(self):
         rc, pos = self.pipeline.query_position(Gst.Format.TIME)
-        newpos = pos - (10 * 10**8)
+        newpos = pos - (10 * 10 ** 8)
         self.pipeline.seek_simple(Gst.Format.TIME, Gst.SeekFlags.FLUSH, newpos)
     
     def ffwd(self):
         rc, pos = self.pipeline.query_position(Gst.Format.TIME)
-        newpos = pos + (10 * 10**8)
+        newpos = pos + (10 * 10 ** 8)
         self.pipeline.seek_simple(Gst.Format.TIME, Gst.SeekFlags.FLUSH, newpos)
         
     def debug(self):
@@ -195,7 +218,7 @@ class SimplePlayer:
 
     def setMedia(self, value):
         print('Set new Media: {}'.format(value))
-        self.media = Media(value, None, self.videoconvert)
+        self.media = Media(value, self.audioghostpad, self.videoghostpad)
         self.pipeline.add(self.media.bin)
 
 
