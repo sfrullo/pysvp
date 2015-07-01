@@ -72,8 +72,8 @@ class App(Tk.Frame):
         self.player1.xid = self.video.winfo_id()
         self.player2.xid = self.video2.winfo_id()
 
-        self.player1.setMedia(media[1])
-        self.player2.setMedia(media[2])
+        self.player1.setMedia(media[1], hasAudio=True, hasVideo=True)
+        self.player2.setMedia(media[2], hasVideo=True)
         
         self.players = [self.player1, self.player2]
 
