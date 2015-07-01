@@ -1,6 +1,7 @@
 *.jpg
 *.avi
 *.pyc
+test*.py
 __pycache__
 .project
 .pydevproject

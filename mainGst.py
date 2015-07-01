@@ -21,13 +21,6 @@ class App(Tk.Frame):
         self.createWidgets()
         self.init_player()
     
-     
-    def updateVideo(self, index):
-        self.player2.stop()
-        self.player2.media = media[index]
-        
-        self.player2.play()
-    
     def createWidgets(self):
         
         self.video = Tk.Frame(self, bg='white')
@@ -72,7 +65,7 @@ class App(Tk.Frame):
         self.player1.xid = self.video.winfo_id()
         self.player2.xid = self.video2.winfo_id()
 
-        self.player1.setMedia(media[1], hasAudio=True, hasVideo=True)
+        self.player1.setMedia(media[1], hasAudio=False, hasVideo=True)
         self.player2.setMedia(media[2], hasVideo=True)
         
         self.players = [self.player1, self.player2]
