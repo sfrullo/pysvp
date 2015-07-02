@@ -4,6 +4,7 @@ from os import path
 from pprint import pprint
 
 from player import *
+from time import sleep
      
 media = {1:path.join(path.dirname(path.abspath(__file__)), 'v1.avi'),
          2:path.join(path.dirname(path.abspath(__file__)), 'v2.avi')}
@@ -45,6 +46,8 @@ class App(Tk.Frame):
         self.ffwdbutton.grid(column = 1, row=1)
         self.debug = Tk.Button(self.buttoncontainer, text='debug', command=self.on_debug)
         self.debug.grid(column = 2, row=0)
+        self.switchScreen = Tk.Button(self.buttoncontainer, text='switchScreen', command=self.on_switchScreen)
+        self.switchScreen.grid(column = 2, row=1)
         
 #         self.videoSelectorContainer = Tk.LabelFrame()
 #         for index in [1,2]:
@@ -62,8 +65,8 @@ class App(Tk.Frame):
         self.player1 = SimplePlayer(name='Player1')
         self.player2 = SimplePlayer(name ='Player2')
         
-        self.player1.xid = self.video.winfo_id()
-        self.player2.xid = self.video2.winfo_id()
+        self.player1.setXid(self.video.winfo_id())
+        self.player2.setXid(self.video2.winfo_id())
 
         self.player1.setMedia(media[1], hasAudio=False, hasVideo=True)
         self.player2.setMedia(media[2], hasVideo=True)
@@ -90,6 +93,15 @@ class App(Tk.Frame):
     def on_debug(self):
         for p in self.players:
             p.debug()
+    
+    def on_switchScreen(self):
+        for widget in self.video.winfo_children():
+            widget.destroy()
+        for widget in self.video2.winfo_children():
+            widget.destroy()
+        p1xid, p2xid = self.player1.getXid(), self.player2.getXid() 
+        self.player1.changeXid(p2xid)
+        self.player2.changeXid(p1xid)
 
 
 

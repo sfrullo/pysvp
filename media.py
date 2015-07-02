@@ -32,6 +32,8 @@ class Media:
         self.id = n
         self.location = sourcefile
         self.filename = sourcefile.split(sep)[-1]
+        self.__hasAudio = hasAudio
+        self.__hasVideo = hasVideo
         
         self.bin = Gst.Bin.new('bin::' + self.filename)
         self.bin.connect('pad-added', self.on_pad_added)
@@ -39,7 +41,7 @@ class Media:
         self.decodebin = Gst.ElementFactory.make('uridecodebin', 'uridecodebin::' + self.filename)
         self.decodebin.connect('pad-added', self.on_pad_added)
         self.decodebin.set_property('uri', 'file:///' + sourcefile)
-        self.decodebin.set_state(Gst.State.PAUSED)
+        self.decodebin.set_state(Gst.State.READY)
         self.bin.add(self.decodebin)
 
         if hasAudio:
@@ -60,6 +62,8 @@ class Media:
     def getLocation(self): return self.location
     def getFilename(self): return self.filename
     def getBin(self):return self.bin
+    def hasAudio(self): return self.__hasAudio
+    def hasVideo(self): return self.__hasVideo
 
     def getVideoGhostPad(self):
         return None if not hasattr(self, 'videoghostsrc') else self.videoghostsrc

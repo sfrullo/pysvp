@@ -122,30 +122,37 @@ class SimplePlayer:
             self.media.getAudioGhostPad().unlink(self.audioghostsink)
         if self.media.getVideoGhostPad():
             self.media.getVideoGhostPad().unlink(self.videoghostsink)
-        
-    def rew(self):
+    
+    def pause(self):
         self.pipeline.set_state(Gst.State.PAUSED)
+    
+    def rew(self):
         rc, pos = self.pipeline.query_position(Gst.Format.TIME)
         newpos = pos - (10 * 10 ** 8)
         self.pipeline.seek_simple(Gst.Format.TIME, Gst.SeekFlags.FLUSH, newpos)
-        self.pipeline.set_state(Gst.State.PLAYING)
         return
         
     def ffwd(self):
-        self.pipeline.set_state(Gst.State.PAUSED)
         rc, pos = self.pipeline.query_position(Gst.Format.TIME)
         newpos = pos + (10 * 10 ** 8)
         self.pipeline.seek_simple(Gst.Format.TIME, Gst.SeekFlags.FLUSH, newpos)
-        self.pipeline.set_state(Gst.State.PLAYING)
         return
         
     def debug(self):
         self.on_debug_activate(self.name + '-debug')
-
+    
+        
+    def changeXid(self, newXid):
+        self.__oldXid = self.getXid()
+        self.setXid(newXid)
+        if hasattr(self, 'imagesink'):
+            self.imagesink.prepare_window_handle()
+            
     #---------------------------------------------------------------------------
     # callback functions
     #---------------------------------------------------------------------------
     def on_message(self, bus, msg):
+        print(bus, msg)
         t = msg.type
         print(t)
         if t == Gst.MessageType.EOS:
@@ -160,9 +167,10 @@ class SimplePlayer:
     def on_sync_message(self, bus, msg):
         if msg.get_structure().get_name() == 'prepare-window-handle':
             print('prepare-window-handle')
-            imagesink = msg.src
-            imagesink.set_property('force-aspect-ratio', True)
-            imagesink.set_window_handle(self.getXid())
+            self.imagesink = msg.src
+            print(self.imagesink)
+            self.imagesink.set_property('force-aspect-ratio', True)
+            self.imagesink.set_window_handle(self.getXid())
      
     def on_pad_added(self, decodebin, pad):
         print(pad.get_name(), ' added to ', decodebin.get_name())
@@ -181,8 +189,9 @@ class SimplePlayer:
         return self.xid
 
     def setXid(self, value):
-        print('Set new xid value:\nPrevious:{} -> New:{}'.format(self.__xid, value))
+        print('Set new xid value:\nPrevious:{} -> New:{}'.format(self.xid, value))
         self.xid = value
+            
 
     def getMedia(self):
         return self.media
@@ -205,8 +214,11 @@ class MultipleMediaPlayer:
     
     def __init__(self, *arg, **kwarg):
         
-        mediadict = dict()
-
+        playlist = dict()
+        
+    def addMediaToPlaylist(self, path, hasAudio=None, hasVideo=None):
+        pass
+    
 class SwitchableMediaPlayer(MultipleMediaPlayer):
     ''' This class implements a player that accept multiple media
     with the possibility of switch between them'''
