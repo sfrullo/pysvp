@@ -2,6 +2,7 @@ log
 *.jpg
 *.avi
 *.pyc
+*.mp3
 test*.py
 __pycache__
 .project

@@ -46,26 +46,44 @@ class BasePlayer:
         self.bus.connect('message', self.on_message)
         self.bus.enable_sync_message_emission()
         self.bus.connect('sync-message::element', self.on_sync_message)
+    
+    
+    #---------------------------------------------------------------------------
+    # Methods
+    #---------------------------------------------------------------------------
+    def addComponent(self, mediatype):
+        '''
+        Add audio/video convert and autosink to the bin of the player.
+        
+        input:
+            mediatype : specifies what kind of components have to be made.
+                        It could be "video" or "audio"
+        return:
+            convert:    the specified mediatype convert
+            sink:       the specified mediatype autosink
+        '''
+        if mediatype not in ['video', 'audio']:
+            raise AttributeError(mediatype, 'is not a valid type. mediatype can only be "video" or "audio"')
+        convertname = mediatype + 'convert'
+        sinkname = 'auto' + mediatype + 'sink'
+        convert = Gst.ElementFactory.make(convertname, mediatype + 'convert::' + self.name)
+        sink = Gst.ElementFactory.make(sinkname, mediatype + 'sink::' + self.name)
+        if not (convert and sink):
+            raise self.LoadingComponentException(mediatype)
+        self.bin.add(convert)
+        self.bin.add(sink)
+        convert.link(sink)
+        return convert, sink
         
     
     #---------------------------------------------------------------------------
     # control functions
     #---------------------------------------------------------------------------
     def play(self):
-        print(self.pipeline.current_state is Gst.State.PLAYING)
-        if not self.pipeline.current_state is Gst.State.PLAYING:
-            if self.media.getAudioGhostPad():
-                self.media.getAudioGhostPad().link(self.audioghostsink)
-            if self.media.getVideoGhostPad():
-                self.media.getVideoGhostPad().link(self.videoghostsink)
-            self.pipeline.set_state(Gst.State.PLAYING)
+        self.pipeline.set_state(Gst.State.PLAYING)
 
     def stop(self):
         self.pipeline.set_state(Gst.State.NULL)
-        if self.media.getAudioGhostPad():
-            self.media.getAudioGhostPad().unlink(self.audioghostsink)
-        if self.media.getVideoGhostPad():
-            self.media.getVideoGhostPad().unlink(self.videoghostsink)
     
     def pause(self):
         self.pipeline.set_state(Gst.State.PAUSED)
@@ -171,33 +189,32 @@ class SimplePlayer(BasePlayer):
     #---------------------------------------------------------------------------
     # Methods
     #---------------------------------------------------------------------------
-    def addVideoComponent(self):
-        # load video and audio component
-        self.videoconvert = Gst.ElementFactory.make('videoconvert', 'videoconvert::' + self.name)
-        self.videosink = Gst.ElementFactory.make('autovideosink', 'video-output::' + self.name)
-        if not (self.videoconvert and self.videosink):
-            raise self.LoadingComponentException('video')
-        self.bin.add(self.videoconvert)
-        self.bin.add(self.videosink)
-        self.videoconvert.link(self.videosink)
-        
-        
-    def addAudioComponent(self):
-        self.audioconvert = Gst.ElementFactory.make('audioconvert', 'audioconvert::' + self.name)
-        self.audiosink = Gst.ElementFactory.make('autoaudiosink', 'audio-output::' + self.name)
-        if not (self.audioconvert and self.audiosink):
-            raise self.LoadingComponentException('audio')
-        self.bin.add(self.audioconvert)
-        self.bin.add(self.audiosink)
-        self.audioconvert.link(self.audiosink)
-        
-        
     def changeXid(self, newXid):
         self.__oldXid = self.getXid()
         self.setXid(newXid)
         # force the imagesink to use new Xid
         if hasattr(self, 'imagesink'):
             self.imagesink.prepare_window_handle()
+            
+    
+    #---------------------------------------------------------------------------
+    # control functions
+    #---------------------------------------------------------------------------
+    def play(self):
+        print(self.pipeline.current_state is Gst.State.PLAYING)
+        if not self.pipeline.current_state is Gst.State.PLAYING:
+            if self.media.getAudioGhostPad():
+                self.media.getAudioGhostPad().link(self.audioghostsink)
+            if self.media.getVideoGhostPad():
+                self.media.getVideoGhostPad().link(self.videoghostsink)
+            self.pipeline.set_state(Gst.State.PLAYING)
+
+    def stop(self):
+        self.pipeline.set_state(Gst.State.NULL)
+        if self.media.getAudioGhostPad():
+            self.media.getAudioGhostPad().unlink(self.audioghostsink)
+        if self.media.getVideoGhostPad():
+            self.media.getVideoGhostPad().unlink(self.videoghostsink)
     
     
     #---------------------------------------------------------------------------
@@ -216,8 +233,10 @@ class SimplePlayer(BasePlayer):
 
     def setMedia(self, filepath, hasAudio=None, hasVideo=None):
         # Create audio/video component
-        if hasAudio: self.addAudioComponent()
-        if hasVideo: self.addVideoComponent()
+        if hasAudio: 
+            self.audioconvert, self.audiosink = self.addComponent('audio')
+        if hasVideo: 
+            self.videoconvert, self.videosink = self.addComponent('video')
         
         print('Set new Media: {} '.format(filepath),
               'with audio ' if hasAudio else 'with no audio ',
@@ -227,11 +246,11 @@ class SimplePlayer(BasePlayer):
 
 
 class MultipleMediaPlayer(BasePlayer):
-    ''' This class implements a player that store and plays multiple media
+    ''' This class implements a player that stores and plays multiple media
     synchronously, one with it's own xid.
     
-    It provides one pipeline for the top level control and generate needed 
-    components based on loaded media.
+    It implements BasicPlayer. A pipeline is instantiated for the top level control 
+    and needed components are made based on loaded media.
     
     
     '''
@@ -239,8 +258,19 @@ class MultipleMediaPlayer(BasePlayer):
     def __init__(self, name=None):
         super(MultipleMediaPlayer, self).__init__(name)
         
+        self.playlist = dict()
+        
     def addMediaToPlaylist(self, path, hasAudio=None, hasVideo=None):
-        pass
+        
+        name = path.split(sep)[-1]
+        self.playlist[name] = Media(path, hasAudio, hasVideo)
+        print(path, ' added to playlist of ', self.name)
+    
+    def removeMediaFromPlaylist(self, name):
+        if name in self.playlist.values():
+            self.playlist.pop(name)
+        else:
+            print(name, ' not in playlist of ', self.name)
     
 class SwitchableMediaPlayer(MultipleMediaPlayer):
     ''' This class implements a player that accept multiple media
