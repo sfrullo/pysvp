@@ -7,7 +7,8 @@ from player import *
 from time import sleep
      
 media = {1:path.join(path.dirname(path.abspath(__file__)), 'v1.avi'),
-         2:path.join(path.dirname(path.abspath(__file__)), 'v2.avi')}
+         2:path.join(path.dirname(path.abspath(__file__)), 'v2.avi'),
+         3:path.join(path.dirname(path.abspath(__file__)), 'test.mp3')}
    
 class App(Tk.Frame):
     
@@ -68,7 +69,7 @@ class App(Tk.Frame):
         self.player1.setXid(self.video.winfo_id())
         self.player2.setXid(self.video2.winfo_id())
 
-        self.player1.setMedia(media[1], hasAudio=False, hasVideo=True)
+        self.player1.setMedia(media[3], hasAudio=True, hasVideo=False)
         self.player2.setMedia(media[2], hasVideo=True)
         
         self.players = [self.player1, self.player2]

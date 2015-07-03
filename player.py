@@ -12,32 +12,8 @@ from gi.repository import GObject, Gst, GstVideo  # @UnresolvedImport
 GObject.threads_init()
 Gst.init(None)
 
-
-class SimplePlayer:
-    ''' SimplePlayer class implements a single media player.
+class BasePlayer:
     
-        basically it provides a pipeline in which there is a bin with ghostpad
-        for audio and video streams. 
-        Once a media is load with setMedia(path, hasAudio, hasVideo) method, 
-        audio and video components are loaded in dependence of hasAudio and hasVideo flags
-         
-        on playing the Player links the src ghostpad of the loaded media and
-        the self's sink ghostpad.
-    '''
-    def on_debug_activate(self, name):
-        print('do debug image')
-        dotfile = "/tmp/" + name + ".dot"
-        pdffile = "/tmp/" + name + ".pdf"
-        if os.access(dotfile, os.F_OK):
-            os.remove(dotfile)
-        if os.access(pdffile, os.F_OK):
-            os.remove(pdffile)
-        Gst.debug_bin_to_dot_file(self.pipeline, Gst.DebugGraphDetails.ALL, name)
-        try:
-            os.system("dot -Tpdf -o " + pdffile + " " + dotfile)
-        except os.error:
-            print("The debug feature requires graphviz (dot) to be installed.")
-       
     #---------------------------------------------------------------------------
     # Exception
     #---------------------------------------------------------------------------
@@ -47,13 +23,12 @@ class SimplePlayer:
             self.kwarg = kwarg
         def __str__(self):
             print('Error occurred while loading {} component'.format(self.arg[1]))
-    
+            
     #---------------------------------------------------------------------------
-    # Init func
+    # Init
     #---------------------------------------------------------------------------
-    def __init__(self, xid=None, name='SimplePlayer'):
-        ''' Init function of SimplePlayer class'''
-        self.xid = xid
+    def __init__(self, name):
+        
         self.name = name
         
         self.pipeline = Gst.Pipeline('pipeline::' + self.name)
@@ -62,15 +37,6 @@ class SimplePlayer:
         self.bin = Gst.Bin('bin::' + self.name)
         self.bin.connect('pad-added', self.on_pad_added)
         if not self.bin: raise self.LoadingComponentException('bin')
-    
-        # add ghostpad to bin
-        self.videoghostsink = Gst.GhostPad.new_no_target('videoghostsink::' + self.name, Gst.PadDirection.SINK)
-        self.videoghostsink.connect('linked', self.on_pad_linkded)
-        self.bin.add_pad(self.videoghostsink)
-        
-        self.audioghostsink = Gst.GhostPad.new_no_target('audioghostsink::' + self.name, Gst.PadDirection.SINK)
-        self.audioghostsink.connect('linked', self.on_pad_linkded)
-        self.bin.add_pad(self.audioghostsink)
       
         # ..and add bin to pipeline
         self.pipeline.add(self.bin)
@@ -80,29 +46,7 @@ class SimplePlayer:
         self.bus.connect('message', self.on_message)
         self.bus.enable_sync_message_emission()
         self.bus.connect('sync-message::element', self.on_sync_message)
-    
-    #---------------------------------------------------------------------------
-    # Methods
-    #---------------------------------------------------------------------------
-    def addVideoComponent(self):
-        # load video and audio component
-        self.videoconvert = Gst.ElementFactory.make('videoconvert', 'videoconvert::' + self.name)
-        self.videosink = Gst.ElementFactory.make('autovideosink', 'video-output::' + self.name)
-        if not (self.videoconvert and self.videosink):
-            raise self.LoadingComponentException('video')
-        self.bin.add(self.videoconvert)
-        self.bin.add(self.videosink)
-        self.videoconvert.link(self.videosink)
         
-    def addAudioComponent(self):
-        self.audioconvert = Gst.ElementFactory.make('audioconvert', 'audioconvert::' + self.name)
-        self.audiosink = Gst.ElementFactory.make('autoaudiosink', 'audio-output::' + self.name)
-        if not (self.audioconvert and self.audiosink):
-            raise self.LoadingComponentException('audio')
-        self.bin.add(self.audioconvert)
-        self.bin.add(self.audiosink)
-        self.audioconvert.link(self.audiosink)
-   
     
     #---------------------------------------------------------------------------
     # control functions
@@ -141,13 +85,7 @@ class SimplePlayer:
     def debug(self):
         self.on_debug_activate(self.name + '-debug')
     
-        
-    def changeXid(self, newXid):
-        self.__oldXid = self.getXid()
-        self.setXid(newXid)
-        if hasattr(self, 'imagesink'):
-            self.imagesink.prepare_window_handle()
-            
+    
     #---------------------------------------------------------------------------
     # callback functions
     #---------------------------------------------------------------------------
@@ -176,11 +114,91 @@ class SimplePlayer:
         print(pad.get_name(), ' added to ', decodebin.get_name())
     
     def on_pad_linkded(self, pad, src):
-        print(src.get_name(), ' linked to ' ,pad.get_name())
+        print(src.get_name(), ' linked to ' , pad.get_name())
         if pad.get_name().startswith('video'):
             self.videoghostsink.set_target(self.videoconvert.get_static_pad('sink'))
         else:
             self.audioghostsink.set_target(self.audioconvert.get_static_pad('sink'))
+            
+            
+    #---------------------------------------------------------------------------
+    # Debug Function
+    #---------------------------------------------------------------------------
+    def on_debug_activate(self, name):
+        print('do debug image')
+        dotfile = "/tmp/" + name + ".dot"
+        pdffile = "/tmp/" + name + ".pdf"
+        if os.access(dotfile, os.F_OK):
+            os.remove(dotfile)
+        if os.access(pdffile, os.F_OK):
+            os.remove(pdffile)
+        Gst.debug_bin_to_dot_file(self.pipeline, Gst.DebugGraphDetails.ALL, name)
+        try:
+            os.system("dot -Tpdf -o " + pdffile + " " + dotfile)
+        except os.error:
+            print("The debug feature requires graphviz (dot) to be installed.")
+
+
+class SimplePlayer(BasePlayer):
+    ''' SimplePlayer class implements a single media player.
+    
+        basically it provides a pipeline in which there is a bin with ghostpad
+        for audio and video streams. 
+        Once a media is load with setMedia(path, hasAudio, hasVideo) method, 
+        audio and video components are loaded in dependence of hasAudio and hasVideo flags
+         
+        on playing the Player links the src ghostpad of the loaded media and
+        the self's sink ghostpad.
+    '''
+       
+    #---------------------------------------------------------------------------
+    # Init func
+    #---------------------------------------------------------------------------
+    def __init__(self, xid=None, name='SimplePlayer'):
+        ''' Init function of SimplePlayer class'''
+        super(SimplePlayer, self).__init__(name)
+        self.xid = xid
+        
+        # create and add ghostpad to bin
+        self.videoghostsink = Gst.GhostPad.new_no_target('videoghostsink::' + self.name, Gst.PadDirection.SINK)
+        self.videoghostsink.connect('linked', self.on_pad_linkded)
+        self.bin.add_pad(self.videoghostsink)
+        
+        self.audioghostsink = Gst.GhostPad.new_no_target('audioghostsink::' + self.name, Gst.PadDirection.SINK)
+        self.audioghostsink.connect('linked', self.on_pad_linkded)
+        self.bin.add_pad(self.audioghostsink)
+            
+    #---------------------------------------------------------------------------
+    # Methods
+    #---------------------------------------------------------------------------
+    def addVideoComponent(self):
+        # load video and audio component
+        self.videoconvert = Gst.ElementFactory.make('videoconvert', 'videoconvert::' + self.name)
+        self.videosink = Gst.ElementFactory.make('autovideosink', 'video-output::' + self.name)
+        if not (self.videoconvert and self.videosink):
+            raise self.LoadingComponentException('video')
+        self.bin.add(self.videoconvert)
+        self.bin.add(self.videosink)
+        self.videoconvert.link(self.videosink)
+        
+        
+    def addAudioComponent(self):
+        self.audioconvert = Gst.ElementFactory.make('audioconvert', 'audioconvert::' + self.name)
+        self.audiosink = Gst.ElementFactory.make('autoaudiosink', 'audio-output::' + self.name)
+        if not (self.audioconvert and self.audiosink):
+            raise self.LoadingComponentException('audio')
+        self.bin.add(self.audioconvert)
+        self.bin.add(self.audiosink)
+        self.audioconvert.link(self.audiosink)
+        
+        
+    def changeXid(self, newXid):
+        self.__oldXid = self.getXid()
+        self.setXid(newXid)
+        # force the imagesink to use new Xid
+        if hasattr(self, 'imagesink'):
+            self.imagesink.prepare_window_handle()
+    
     
     #---------------------------------------------------------------------------
     # getter/setter definition 
@@ -201,20 +219,25 @@ class SimplePlayer:
         if hasAudio: self.addAudioComponent()
         if hasVideo: self.addVideoComponent()
         
-        print('Set new Media: {} '.format(filepath), 
+        print('Set new Media: {} '.format(filepath),
               'with audio ' if hasAudio else 'with no audio ',
               'with video' if hasVideo else 'with no video')
         self.media = Media(filepath, hasAudio, hasVideo)
         self.pipeline.add(self.media.getBin())
 
 
-class MultipleMediaPlayer:
-    ''' This class implements a player that store multiple media.
-        It is intended to be use as base class for advance player class '''
+class MultipleMediaPlayer(BasePlayer):
+    ''' This class implements a player that store and plays multiple media
+    synchronously, one with it's own xid.
     
-    def __init__(self, *arg, **kwarg):
-        
-        playlist = dict()
+    It provides one pipeline for the top level control and generate needed 
+    components based on loaded media.
+    
+    
+    '''
+    
+    def __init__(self, name=None):
+        super(MultipleMediaPlayer, self).__init__(name)
         
     def addMediaToPlaylist(self, path, hasAudio=None, hasVideo=None):
         pass
