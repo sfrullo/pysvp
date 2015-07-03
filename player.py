@@ -51,7 +51,7 @@ class BasePlayer:
     #---------------------------------------------------------------------------
     # Methods
     #---------------------------------------------------------------------------
-    def addComponent(self, mediatype):
+    def addMediaComponent(self, mediatype, idname=''):
         '''
         Add audio/video convert and autosink to the bin of the player.
         
@@ -66,14 +66,36 @@ class BasePlayer:
             raise AttributeError(mediatype, 'is not a valid type. mediatype can only be "video" or "audio"')
         convertname = mediatype + 'convert'
         sinkname = 'auto' + mediatype + 'sink'
-        convert = Gst.ElementFactory.make(convertname, mediatype + 'convert::' + self.name)
-        sink = Gst.ElementFactory.make(sinkname, mediatype + 'sink::' + self.name)
+        convert = Gst.ElementFactory.make(convertname, mediatype + 'convert:' + idname + ':' + self.name)
+        sink = Gst.ElementFactory.make(sinkname, mediatype + 'sink:' + idname + ':' + self.name)
         if not (convert and sink):
             raise self.LoadingComponentException(mediatype)
         self.bin.add(convert)
         self.bin.add(sink)
         convert.link(sink)
         return convert, sink
+    
+    def addGhostPad(self, mediatype, padtype, idname=''):
+        '''
+        Add audio/video ghostpad to the bin of the player.
+        
+        input:
+            mediatype : specifies what kind of components have to be made.
+                        It could be "video" or "audio"
+            padtype: specifies what direction the pad has to have. 
+                        Admit "src" or "sink"
+        return:
+            ghostpad:   the specified direction mediatype ghostpad
+        '''
+        name = mediatype + 'ghost' + padtype + ':' + idname + ':'
+        if padtype not in ['sink', 'src']:
+            raise TypeError(padtype, ' is not a valid ghostpad type')
+        else:
+            padtype = Gst.PadDirection.SINK if padtype == 'sink' else Gst.PadDirection.SINK
+        ghostpad = Gst.GhostPad.new_no_target( name + self.name, padtype)
+        ghostpad.connect('linked', self.on_pad_linkded)
+        self.bin.add_pad(ghostpad)
+        return ghostpad
         
     
     #---------------------------------------------------------------------------
@@ -178,13 +200,8 @@ class SimplePlayer(BasePlayer):
         self.xid = xid
         
         # create and add ghostpad to bin
-        self.videoghostsink = Gst.GhostPad.new_no_target('videoghostsink::' + self.name, Gst.PadDirection.SINK)
-        self.videoghostsink.connect('linked', self.on_pad_linkded)
-        self.bin.add_pad(self.videoghostsink)
-        
-        self.audioghostsink = Gst.GhostPad.new_no_target('audioghostsink::' + self.name, Gst.PadDirection.SINK)
-        self.audioghostsink.connect('linked', self.on_pad_linkded)
-        self.bin.add_pad(self.audioghostsink)
+        self.videoghostsink = self.addGhostPad('video', 'sink')
+        self.audioghostsink = self.addGhostPad('audio', 'sink')
             
     #---------------------------------------------------------------------------
     # Methods
@@ -233,10 +250,11 @@ class SimplePlayer(BasePlayer):
 
     def setMedia(self, filepath, hasAudio=None, hasVideo=None):
         # Create audio/video component
+        name = filepath.split(sep)[-1]
         if hasAudio: 
-            self.audioconvert, self.audiosink = self.addComponent('audio')
+            self.audioconvert, self.audiosink = self.addMediaComponent('audio', idname=name)
         if hasVideo: 
-            self.videoconvert, self.videosink = self.addComponent('video')
+            self.videoconvert, self.videosink = self.addMediaComponent('video', idname=name)
         
         print('Set new Media: {} '.format(filepath),
               'with audio ' if hasAudio else 'with no audio ',
@@ -261,6 +279,7 @@ class MultipleMediaPlayer(BasePlayer):
         self.playlist = dict()
         
     def addMediaToPlaylist(self, path, hasAudio=None, hasVideo=None):
+        
         
         name = path.split(sep)[-1]
         self.playlist[name] = Media(path, hasAudio, hasVideo)
