@@ -1,5 +1,4 @@
 import tkinter as Tk
-from PIL import Image, ImageTk
 from os import path
 from pprint import pprint
 
@@ -63,17 +62,26 @@ class App(Tk.Frame):
     
     def init_player(self):
                 
-        self.player1 = SimplePlayer(name='Player1')
-        self.player2 = SimplePlayer(name ='Player2')
+#         self.player1 = SimplePlayer(name='Player1')
+#         self.player2 = SimplePlayer(name ='Player2')
         
-        self.player1.setXid(self.video.winfo_id())
-        self.player2.setXid(self.video2.winfo_id())
+#         self.player1.setXid(self.video.winfo_id())
+#         self.player2.setXid(self.video2.winfo_id())
 
-        self.player1.setMedia(media[1], hasAudio=False, hasVideo=True)
-        self.player2.setMedia(media[2], hasVideo=True)
+#         self.player1.setMedia(media[1], hasAudio=False, hasVideo=True)
+#         self.player2.setMedia(media[2], hasVideo=True)
+#         
+
+        self.multiplayer = MultipleMediaPlayer('multiplayer')
         
-        self.players = [self.player1, self.player2]
-
+        self.multiplayer.addMediaToPlaylist(media[1], hasAudio=False, hasVideo=True)
+        self.multiplayer.addMediaToPlaylist(media[2], hasVideo=True)
+        
+        self.multiplayer.setXid(media[1], self.video.winfo_id())
+        self.multiplayer.setXid(media[2],self.video2.winfo_id())
+        
+        self.players = [self.multiplayer]
+        
 
     def on_play(self):
         for p in self.players:
