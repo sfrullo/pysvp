@@ -68,7 +68,8 @@ class BasePlayer:
         sinkname = 'auto' + mediatype + 'sink'
         convert = Gst.ElementFactory.make(convertname, mediatype + 'convert:' + idname + ':' + self.name)
         sink = Gst.ElementFactory.make(sinkname, mediatype + 'sink:' + idname + ':' + self.name)
-        if not (convert and sink):
+        print(self.bin.get_name(), convert.get_name(), sink.get_name())
+        if not convert or not sink:
             raise self.LoadingComponentException(mediatype)
         self.bin.add(convert)
         self.bin.add(sink)
@@ -87,12 +88,12 @@ class BasePlayer:
         return:
             ghostpad:   the specified direction mediatype ghostpad
         '''
-        name = mediatype + 'ghost' + padtype + ':' + idname + ':'
+        name = mediatype + 'ghost' + padtype + ':' + idname + ':' + self.name
         if padtype not in ['sink', 'src']:
             raise TypeError(padtype, ' is not a valid ghostpad type')
         else:
-            padtype = Gst.PadDirection.SINK if padtype == 'sink' else Gst.PadDirection.SINK
-        ghostpad = Gst.GhostPad.new_no_target( name + self.name, padtype)
+            padtype = Gst.PadDirection.SINK if padtype == 'sink' else Gst.PadDirection.SRC
+        ghostpad = Gst.GhostPad.new_no_target( name, padtype)
         ghostpad.connect('linked', self.on_pad_linkded)
         self.bin.add_pad(ghostpad)
         return ghostpad
@@ -102,25 +103,25 @@ class BasePlayer:
     # control functions
     #---------------------------------------------------------------------------
     def play(self):
-        self.pipeline.set_state(Gst.State.PLAYING)
+        return self.pipeline.set_state(Gst.State.PLAYING)
 
     def stop(self):
-        self.pipeline.set_state(Gst.State.NULL)
+        return self.pipeline.set_state(Gst.State.NULL)
     
     def pause(self):
-        self.pipeline.set_state(Gst.State.PAUSED)
+        return self.pipeline.set_state(Gst.State.PAUSED)
     
     def rew(self):
         rc, pos = self.pipeline.query_position(Gst.Format.TIME)
         newpos = pos - (10 * 10 ** 8)
-        self.pipeline.seek_simple(Gst.Format.TIME, Gst.SeekFlags.FLUSH, newpos)
-        return
+        return self.pipeline.seek_simple(Gst.Format.TIME, Gst.SeekFlags.FLUSH, newpos)
+        
         
     def ffwd(self):
         rc, pos = self.pipeline.query_position(Gst.Format.TIME)
         newpos = pos + (10 * 10 ** 8)
-        self.pipeline.seek_simple(Gst.Format.TIME, Gst.SeekFlags.FLUSH, newpos)
-        return
+        return self.pipeline.seek_simple(Gst.Format.TIME, Gst.SeekFlags.FLUSH, newpos)
+        
         
     def debug(self):
         self.on_debug_activate(self.name + '-debug')
@@ -141,24 +142,13 @@ class BasePlayer:
             print(self.name, 'on_error():', msg.parse_error())
         elif t == Gst.MessageType.STATE_CHANGED:
             print(self.name, 'state changed:', msg.parse_state_changed())
-    
-    def on_sync_message(self, bus, msg):
-        if msg.get_structure().get_name() == 'prepare-window-handle':
-            print('prepare-window-handle')
-            self.imagesink = msg.src
-            print(self.imagesink)
-            self.imagesink.set_property('force-aspect-ratio', True)
-            self.imagesink.set_window_handle(self.getXid())
      
-    def on_pad_added(self, decodebin, pad):
-        print(pad.get_name(), ' added to ', decodebin.get_name())
-    
-    def on_pad_linkded(self, pad, src):
-        print(src.get_name(), ' linked to ' , pad.get_name())
-        if pad.get_name().startswith('video'):
-            self.videoghostsink.set_target(self.videoconvert.get_static_pad('sink'))
-        else:
-            self.audioghostsink.set_target(self.audioconvert.get_static_pad('sink'))
+    def on_pad_added(self, element, pad):
+        print(pad.get_name(), ' added to ', element.get_name())
+        
+        
+    def on_sync_message(self, bus, msg):
+        pass
             
             
     #---------------------------------------------------------------------------
@@ -202,7 +192,28 @@ class SimplePlayer(BasePlayer):
         # create and add ghostpad to bin
         self.videoghostsink = self.addGhostPad('video', 'sink')
         self.audioghostsink = self.addGhostPad('audio', 'sink')
-            
+    
+    
+    #---------------------------------------------------------------------------
+    # Callback
+    #---------------------------------------------------------------------------
+    def on_sync_message(self, bus, msg):
+        if msg.get_structure().get_name() == 'prepare-window-handle':
+            print('prepare-window-handle')
+            self.imagesink = msg.src
+            print(self.imagesink)
+            self.imagesink.set_property('force-aspect-ratio', True)
+            self.imagesink.set_window_handle(self.getXid())
+
+
+    def on_pad_linkded(self, pad, src):
+        print(src.get_name(), ' linked to ' , pad.get_name())
+        if pad.get_name().startswith('video'):
+            self.videoghostsink.set_target(self.videoconvert.get_static_pad('sink'))
+        else:
+            self.audioghostsink.set_target(self.audioconvert.get_static_pad('sink'))
+    
+    
     #---------------------------------------------------------------------------
     # Methods
     #---------------------------------------------------------------------------
@@ -224,14 +235,14 @@ class SimplePlayer(BasePlayer):
                 self.media.getAudioGhostPad().link(self.audioghostsink)
             if self.media.getVideoGhostPad():
                 self.media.getVideoGhostPad().link(self.videoghostsink)
-            self.pipeline.set_state(Gst.State.PLAYING)
+            return self.pipeline.set_state(Gst.State.PLAYING)
 
     def stop(self):
         self.pipeline.set_state(Gst.State.NULL)
         if self.media.getAudioGhostPad():
             self.media.getAudioGhostPad().unlink(self.audioghostsink)
         if self.media.getVideoGhostPad():
-            self.media.getVideoGhostPad().unlink(self.videoghostsink)
+            return self.media.getVideoGhostPad().unlink(self.videoghostsink)
     
     
     #---------------------------------------------------------------------------
@@ -272,24 +283,124 @@ class MultipleMediaPlayer(BasePlayer):
     
     
     '''
+
+    class PlaylistElement:
+        def __init__(self, media, videocomponent, audiocomponent, xid=None):
+            self.media = media
+            self.xid = xid
+            if videocomponent:
+                self.videoconvert = videocomponent[0]
+                self.videosink = videocomponent[1]
+            if audiocomponent:
+                self.audioconvert = audiocomponent[0]
+                self.audiosink = audiocomponent[1]
+             
+        def getFilename(self):     
+            return self.media.getFilename()
+        
+        def getXid(self):
+            return self.xid
+            
+        def setXid(self, value):
+            self.__oldxid = self.xid
+            self.xid = value
     
     def __init__(self, name=None):
         super(MultipleMediaPlayer, self).__init__(name)
         
         self.playlist = dict()
+
+        # overload bus sync-message callback function to pass playlist
+        self.bus.connect('sync-message::element', self.on_sync_message, self.playlist)
         
+        
+    #---------------------------------------------------------------------------
+    # Methods
+    #---------------------------------------------------------------------------
     def addMediaToPlaylist(self, path, hasAudio=None, hasVideo=None):
+        filename = path.split(sep)[-1]
+        if hasVideo:
+            self.addGhostPad('video', 'sink', idname=filename)
+            videocomponent = self.addMediaComponent('video', idname=filename)
+        else:
+            videocomponent = None
         
+        if hasAudio:
+            self.addGhostPad('audio', 'sink', idname=filename)
+            audiocomponent = self.addMediaComponent('audio', idname=filename)
+        else: 
+            audiocomponent = None
         
-        name = path.split(sep)[-1]
-        self.playlist[name] = Media(path, hasAudio, hasVideo)
+        media = Media(path, hasAudio, hasVideo)
+        self.playlist[filename] = MultipleMediaPlayer.PlaylistElement(media, videocomponent, audiocomponent)
         print(path, ' added to playlist of ', self.name)
+        self.pipeline.add(media.getBin())
     
     def removeMediaFromPlaylist(self, name):
         if name in self.playlist.values():
             self.playlist.pop(name)
         else:
             print(name, ' not in playlist of ', self.name)
+            
+    def setXid(self, media, xid):
+        name = media.split(sep)[-1]
+        try:
+            self.playlist[name].setXid(xid)
+        except AttributeError as e:
+            print(e)
+            return
+        
+    
+    #---------------------------------------------------------------------------
+    # Callbacks
+    #---------------------------------------------------------------------------
+    def on_pad_linkded(self, pad, src):
+        print(src.get_name(), ' linked to ', pad.get_name())
+        sinkpad, filename, parent = pad.get_name().split(':')
+        if sinkpad.startswith('video'):
+            convertname = 'videoconvert:' + filename + ':' + parent
+        else:
+            convertname = 'audioconvert:' + filename + ':' + parent
+        convertpad = self.bin.get_by_name(convertname).get_static_pad('sink')
+        pad.set_target(convertpad)
+        print(pad.get_name(), ' linked to ', convertname)
+        
+    def on_sync_message(self, bus, msg, playlist):
+        print(playlist)
+        if msg.get_structure().get_name() == 'prepare-window-handle':
+            imagesink = msg.src
+            medianame = imagesink.get_name().split(':')[1]
+            print('prepare-window-handle')
+            print(imagesink)
+            imagesink.set_property('force-aspect-ratio', True)
+            imagesink.set_window_handle(playlist[medianame].getXid())
+    
+    #---------------------------------------------------------------------------
+    # control functions
+    #---------------------------------------------------------------------------
+    def play(self):
+        if not self.pipeline.current_state is Gst.State.PLAYING:
+            for media in self.playlist.values():
+                videosinkpad = self.bin.get_static_pad('videoghostsink:{}:{}'.format(media.getFilename(), self.name))
+                if videosinkpad:
+                    media.media.getVideoGhostPad().link(videosinkpad)
+                audiosinkpad = self.bin.get_static_pad('audioghostsink:{}:{}'.format(media.getFilename(), self.name))
+                if audiosinkpad:
+                    media.media.getAudioGhostPad().link(audiosinkpad)
+            return self.pipeline.set_state(Gst.State.PLAYING)
+
+    def stop(self):
+        self.pipeline.set_state(Gst.State.NULL)
+        for media in self.playlist.values():
+            audiosinkpad = self.bin.get_static_pad('audioghostsink:{}:{}'.format(media.getFilename(), self.name))
+            if audiosinkpad:
+                media.media.getAudioGhostPad().unlink(audiosinkpad)
+            videosinkpad = self.bin.get_static_pad('videoghostsink:{}:{}'.format(media.getFilename(), self.name))
+            if videosinkpad:
+                media.media.getVideoGhostPad().unlink(videosinkpad)
+                
+                
+    
     
 class SwitchableMediaPlayer(MultipleMediaPlayer):
     ''' This class implements a player that accept multiple media
