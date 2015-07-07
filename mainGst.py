@@ -7,7 +7,7 @@ from time import sleep
      
 media = {1:path.join(path.dirname(path.abspath(__file__)), 'v1.avi'),
          2:path.join(path.dirname(path.abspath(__file__)), 'v2.avi'),
-         3:path.join(path.dirname(path.abspath(__file__)), 'test.mp3')}
+         3:path.join(path.dirname(path.abspath(__file__)), 'v4.avi')}
    
 class App(Tk.Frame):
     
@@ -33,6 +33,11 @@ class App(Tk.Frame):
         self.video2.configure(width=250, height=250)
         self.video2.anchor(Tk.CENTER)
         self.video2.grid(column = 1, row=0)
+        
+        self.video3 = Tk.Frame(self, bg='white')
+        self.video3.configure(width=250, height=250)
+        self.video3.anchor(Tk.CENTER)
+        self.video3.grid(column = 2, row=0)
         
         self.buttoncontainer  = Tk.LabelFrame(relief='flat')
         self.buttoncontainer.grid(column = 0, row=1)
@@ -74,11 +79,13 @@ class App(Tk.Frame):
 
         self.multiplayer = MultipleMediaPlayer('multiplayer')
         
-        self.multiplayer.addMediaToPlaylist(media[1], hasAudio=False, hasVideo=True)
-        self.multiplayer.addMediaToPlaylist(media[2], hasVideo=True)
+        self.multiplayer.addMediaToPlaylist(media[1], hasAudio=False)
+        self.multiplayer.addMediaToPlaylist(media[2], hasAudio=False)
+        self.multiplayer.addMediaToPlaylist(media[3], hasAudio=False)
         
-        self.multiplayer.setXid(media[1], self.video.winfo_id())
-        self.multiplayer.setXid(media[2],self.video2.winfo_id())
+        self.multiplayer.setMediaXid(media[1], self.video.winfo_id())
+        self.multiplayer.setMediaXid(media[2],self.video2.winfo_id())
+        self.multiplayer.setMediaXid(media[3],self.video3.winfo_id())
         
         self.players = [self.multiplayer]
         
@@ -108,9 +115,10 @@ class App(Tk.Frame):
             widget.destroy()
         for widget in self.video2.winfo_children():
             widget.destroy()
-        p1xid, p2xid = self.player1.getXid(), self.player2.getXid() 
-        self.player1.changeXid(p2xid)
-        self.player2.changeXid(p1xid)
+        p1xid, p2xid, p3xid = self.multiplayer.getMediaXid(media[1]), self.multiplayer.getMediaXid(media[2]), self.multiplayer.getMediaXid(media[3])
+        self.multiplayer.setMediaXid(media[1], p3xid)
+        self.multiplayer.setMediaXid(media[2], p1xid)
+        self.multiplayer.setMediaXid(media[3], p2xid)
 
 
 
