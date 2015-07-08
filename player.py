@@ -47,6 +47,7 @@ class BasePlayer:
         self.bus.add_watch(0, self.on_message, None)
         self.bus.unref()
     
+    
     #---------------------------------------------------------------------------
     # Methods
     #---------------------------------------------------------------------------
@@ -257,7 +258,6 @@ class SimplePlayer(BasePlayer):
         print('Set new xid value:\nPrevious:{} -> New:{}'.format(self.xid, value))
         self.xid = value
             
-
     def getMedia(self):
         return self.media
 
@@ -310,7 +310,24 @@ class MultipleMediaPlayer(BasePlayer):
 
         def setImagesink(self, value):
             self.imagesink = value
+            
+        def getAudioComponent(self):
+            if hasattr(self, 'audioconvert') and hasattr(self, 'self.audiosink'):
+                return (self.audioconvert, self.audiosink)
+            else:
+                return ()
     
+        def getVideoComponent(self):
+            if hasattr(self, 'videoconvert') and hasattr(self, 'videosink'):
+                return (self.videoconvert, self.videosink)
+            else:
+                return ()
+        
+        def destroy(self):
+            for c in self.media.bin.children:
+                self.media.bin.remove(c)
+            Gst.Object.unref(self.media.bin)
+
 
     #---------------------------------------------------------------------------
     # Initialization
@@ -318,6 +335,7 @@ class MultipleMediaPlayer(BasePlayer):
     def __init__(self, name=None):
         super(MultipleMediaPlayer, self).__init__(name)
         self.playlist = dict()
+     
         
     #---------------------------------------------------------------------------
     # Methods
@@ -341,8 +359,13 @@ class MultipleMediaPlayer(BasePlayer):
         print(path, ' added to playlist of ', self.name)
         self.pipeline.add(media.getBin())
     
-    def removeMediaFromPlaylist(self, name):
-        if name in self.playlist.values():
+    def removeMediaFromPlaylist(self, media):
+        name = media.split(sep)[-1]
+        if name in self.playlist.keys():
+            for component in (self.playlist[name].getAudioComponent() + self.playlist[name].getVideoComponent()): 
+                if component:
+                    self.bin.remove(component)
+            self.playlist[name].destroy()
             self.playlist.pop(name)
         else:
             print(name, ' not in playlist of ', self.name)
@@ -406,6 +429,7 @@ class MultipleMediaPlayer(BasePlayer):
             print(self.name, 'on_error():', msg.parse_error())
         elif t == Gst.MessageType.STATE_CHANGED:
             print(self.name, 'state changed:', msg.parse_state_changed())
+       
                 
     #---------------------------------------------------------------------------
     # control functions
