@@ -2,7 +2,7 @@ import tkinter as Tk
 from os import path
 from pprint import pprint
 
-from player import *
+from player.player import *
 from time import sleep
      
 media = {1:path.join(path.dirname(path.abspath(__file__)), 'v1.avi'),
